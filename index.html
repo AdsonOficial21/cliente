@@ -490,6 +490,78 @@
     #readyVideosList { grid-template-columns: 1fr; }
   }
 
+  /* ── AVISO FECHADO ─────────────────────────────────────────── */
+  #fechadoOverlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    align-items: center; justify-content: center;
+    padding: 2rem 1rem;
+  }
+  #fechadoOverlay.show { display: flex; }
+  .fechado-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,68,68,.25);
+    border-radius: 20px;
+    padding: 2.75rem 2rem 2.5rem;
+    width: 100%; max-width: 420px;
+    text-align: center;
+    box-shadow: 0 0 0 1px rgba(255,68,68,.1), 0 32px 80px rgba(0,0,0,.85);
+    animation: fechadoIn .35s ease;
+  }
+  @keyframes fechadoIn {
+    from { opacity: 0; transform: translateY(20px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .fechado-icon-wrap {
+    width: 68px; height: 68px;
+    background: rgba(255,68,68,.1);
+    border: 1.5px solid rgba(255,68,68,.3);
+    border-radius: 18px;
+    display: grid; place-items: center;
+    margin: 0 auto 1.5rem;
+    box-shadow: 0 0 28px rgba(255,68,68,.15);
+  }
+  .fechado-icon-wrap svg { width: 30px; height: 30px; color: #ff4444; }
+  .fechado-title {
+    font-size: 1.3rem; font-weight: 700;
+    letter-spacing: -.3px; margin-bottom: .5rem;
+    font-family: 'Sora', sans-serif;
+    color: var(--text);
+  }
+  .fechado-subtitle {
+    font-size: .875rem; color: var(--muted2);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.65; margin-bottom: 1.5rem;
+  }
+  .fechado-horario-badge {
+    display: inline-flex; align-items: center; gap: .5rem;
+    background: rgba(26,255,79,.07);
+    border: 1px solid rgba(26,255,79,.2);
+    border-radius: 99px;
+    padding: .5rem 1rem;
+    font-size: .82rem; font-weight: 700;
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    margin-bottom: 1.5rem;
+  }
+  .fechado-horario-badge svg { width: 14px; height: 14px; }
+  .fechado-msg {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .9rem 1.1rem;
+    font-size: .82rem; color: var(--text);
+    font-family: 'Inter', sans-serif; line-height: 1.6;
+    text-align: left;
+    margin-bottom: 1.25rem;
+  }
+  .fechado-logo {
+    margin-top: .5rem;
+    opacity: .35;
+  }
+  .fechado-logo img { height: 32px; object-fit: contain; }
+
 
     body { padding: 3rem 2rem; }
     .card { max-width: 780px; padding: 3rem 3rem; border-radius: 16px; }
@@ -894,6 +966,27 @@
 </head>
 <body>
 
+<!-- ── AVISO FECHADO ──────────────────────────────────────── -->
+<div id="fechadoOverlay">
+  <div class="fechado-card">
+    <div class="fechado-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <div class="fechado-title">Estamos fechados no momento</div>
+    <div class="fechado-subtitle" id="fechadoMsgText">Voltamos em breve. Obrigado pela compreensão!</div>
+    <div class="fechado-horario-badge" id="fechadoHorarioBadge" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span id="fechadoHorarioText"></span>
+    </div>
+    <div class="fechado-logo">
+      <img src="https://i.imgur.com/JOsLSf4.png" alt="Logo">
+    </div>
+  </div>
+</div>
+
 <!-- ── LOGIN SCREEN ─────────────────────────────────────── -->
 <div id="loginScreen">
   <div class="login-card">
@@ -1173,7 +1266,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getDatabase, ref, push, set, get, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+  import { getDatabase, ref, push, set, get, remove, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC7j6OUbsJs3jnp4bug59DRAP_ukvSlrlg",
@@ -1187,6 +1280,34 @@
 
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
+
+  // ── Verificação de horário ────────────────────────────────────
+  function isAberto(config) {
+    return config.aberto !== false;
+  }
+
+  function aplicarStatusHorario(config) {
+    const overlay = document.getElementById('fechadoOverlay');
+    if (isAberto(config)) {
+      overlay.classList.remove('show');
+    } else {
+      const badgeEl = document.getElementById('fechadoHorarioBadge');
+      const horarioTextEl = document.getElementById('fechadoHorarioText');
+      if (config.horaAbre) {
+        horarioTextEl.textContent = `Abre às ${config.horaAbre}`;
+        badgeEl.style.display = '';
+      } else {
+        badgeEl.style.display = 'none';
+      }
+      overlay.classList.add('show');
+    }
+  }
+
+  // Listener em tempo real do horário
+  onValue(ref(db, 'horario'), snap => {
+    const config = snap.exists() ? snap.val() : {};
+    aplicarStatusHorario(config);
+  });
 
   // ── Login logic ──────────────────────────────────────────────
   const loginScreen = document.getElementById('loginScreen');
@@ -1572,17 +1693,34 @@
     try {
       const [videoData, imageData] = await Promise.all([readAsBase64(videoFile), readAsBase64(imageFile)]);
 
-      // Gera número sequencial sem repetição: pega o maior # existente e soma 1
-      const snapCount = await get(ref(db, 'submissions'));
-      let maxNumber = 0;
-      if (snapCount.exists()) {
-        snapCount.forEach(child => {
-          const name = child.val().clientName || '';
-          const n = parseInt(name.replace('#', ''), 10);
-          if (!isNaN(n) && n > maxNumber) maxNumber = n;
-        });
+      // Gera número sequencial sem repetição via contador atômico no Firebase
+      // (não depende de submissions existentes, então nunca reutiliza números
+      // mesmo que um pedido antigo seja excluído ou finalizado)
+      const counterResult = await runTransaction(ref(db, 'counters/lastOrderNumber'), current => {
+        if (current) return current + 1; // contador já inicializado, segue normal
+        return null; // sinaliza necessidade de inicialização segura abaixo
+      });
+
+      let submissionNumber = counterResult.snapshot.val();
+      if (!submissionNumber) {
+        // Primeira vez: inicializa o contador olhando o maior # já usado em
+        // submissions e finalizado, para nunca colidir com pedidos antigos.
+        let maxNumber = 0;
+        const scanForMax = snap => {
+          if (!snap.exists()) return;
+          snap.forEach(child => {
+            const val = child.val();
+            const name = val.clientName || val.orderRef || '';
+            const n = parseInt(String(name).replace('#', ''), 10);
+            if (!isNaN(n) && n > maxNumber) maxNumber = n;
+          });
+        };
+        const [snapSub, snapFin] = await Promise.all([get(ref(db, 'submissions')), get(ref(db, 'finalizado'))]);
+        scanForMax(snapSub);
+        scanForMax(snapFin);
+        const initResult = await runTransaction(ref(db, 'counters/lastOrderNumber'), current => (current || maxNumber) + 1);
+        submissionNumber = initResult.snapshot.val();
       }
-      const submissionNumber = maxNumber + 1;
 
       const submission = {
         timestamp:  new Date().toLocaleString('pt-BR'),
